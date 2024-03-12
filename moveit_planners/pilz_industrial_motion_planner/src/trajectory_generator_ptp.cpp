@@ -134,6 +134,21 @@ void TrajectoryGeneratorPTP::planPTP(const std::map<std::string, double>& start_
     return;
   }
 
+  double most_strict_velocity=5;
+  double most_strict_acceleration=5;
+  double most_strict_decceleration=5;
+
+  for(auto const& goal: goal_pos){
+	  if(fabs(start_pos.at(goal.first) - goal.second) >= MIN_MOVEMENT){
+		  if(most_strict_velocity > joint_limits_.getLimit(goal.first).max_velocity)
+			  most_strict_velocity =joint_limits_.getLimit(goal.first).max_velocity;
+		  if(most_strict_acceleration > joint_limits_.getLimit(goal.first).max_acceleration){
+			  most_strict_acceleration = joint_limits_.getLimit(goal.first).max_acceleration;
+			  most_strict_decceleration = -joint_limits_.getLimit(goal.first).max_acceleration;
+		  }
+	  }
+  }
+
   // compute the fastest trajectory and choose the slowest joint as leading axis
   std::string leading_axis = joint_trajectory.joint_names.front();
   double max_duration = -1.0;
@@ -143,9 +158,11 @@ void TrajectoryGeneratorPTP::planPTP(const std::map<std::string, double>& start_
   {
     // create vecocity profile if necessary
     velocity_profile.insert(std::make_pair(
-        joint_name, VelocityProfileATrap(velocity_scaling_factor * most_strict_limit_.max_velocity,
-                                         acceleration_scaling_factor * most_strict_limit_.max_acceleration,
-                                         acceleration_scaling_factor * most_strict_limit_.max_deceleration)));
+        joint_name, VelocityProfileATrap(
+            velocity_scaling_factor * most_strict_velocity,
+            acceleration_scaling_factor * most_strict_acceleration,
+            acceleration_scaling_factor * most_strict_decceleration
+    )));
 
     velocity_profile.at(joint_name).SetProfile(start_pos.at(joint_name), goal_pos.at(joint_name));
     if (velocity_profile.at(joint_name).Duration() > max_duration)
